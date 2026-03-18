@@ -25,7 +25,7 @@ def merkle_root(transactions):
         for i in range(0, len(tx_hashes), 2):
             combined = tx_hashes[i] + tx_hashes[i + 1]
             new_hash = hashlib.sha256(combined.encode()).hexdigest()
-            new_level.append(new_level)
+            new_level.append(new_hash)
         
         tx_hashes = new_level
 
