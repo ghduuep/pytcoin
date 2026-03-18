@@ -1,50 +1,7 @@
-import hashlib
-import time
-import json
 import ecdsa
 import binascii
-
-def generate_keys():
-    sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
-    private_key = binascii.hexlify(sk.to_string()).decode()
-    vk = sk.get_verifying_key()
-    public_key = binascii.hexlify(vk.to_string()).decode() # type: ignore
-    return private_key, public_key
-
-def merkle_root(transactions):
-    tx_hashes = [tx.compute_hash() for tx in transactions]
-
-    if not tx_hashes:
-        return None
-
-    while len(tx_hashes) > 1:
-        if len(tx_hashes) % 2 != 0:
-            tx_hashes.append(tx_hashes[-1])
-
-        new_level = []
-        for i in range(0, len(tx_hashes), 2):
-            combined = tx_hashes[i] + tx_hashes[i + 1]
-            new_hash = hashlib.sha256(combined.encode()).hexdigest()
-            new_level.append(new_hash)
-        
-        tx_hashes = new_level
-
-    return tx_hashes[0]
-
-class Block:
-    def __init__(self, index, transactions, previous_hash, nonce=0):
-        self.index = index
-        self.timestamp = time.time()
-        self.transactions = transactions
-        self.previous_hash = previous_hash
-        self.nonce = nonce
-        self.merkle_root = merkle_root(transactions)
-        self.hash = self.compute_hash()
-
-    def compute_hash(self):
-        block_string = json.dumps(self.__dict__, sort_keys=True)
-        return hashlib.sha256(block_string.encode()).hexdigest()
-    
+from .block import Block, merkle_root
+from .transaction import Transaction, TxOutput   
 class Blockchain:
 
     def __init__(self):
@@ -175,46 +132,5 @@ class Blockchain:
                 balance += output.amount
         return balance
 
-class TxOutput:
-    def __init__(self, recipient, amount):
-        self.recipient = recipient
-        self.amount = amount
 
-class TxInput:
-    def __init__(self, tx_id, output_index, signature=None, public_key=None):
-        self.tx_id = tx_id
-        self.output_index = output_index
-        self.signature = signature
-        self.public_key = public_key
-
-class Transaction:
-    def __init__(self, inputs, outputs):
-        self.inputs = inputs
-        self.outputs = outputs
-        self.timestamp = time.time()
-        self.signature = None
-
-    def compute_hash(self):
-        data = json.dumps(self.__dict__, default=lambda o: o.__dict__, sort_keys=True)
-        return hashlib.sha256(data.encode()).hexdigest()
-    
-    def sign_transaction(self, private_key_hex):
-        sk = ecdsa.SigningKey.from_string(bytes.fromhex(private_key_hex), curve=ecdsa.SECP256k1)
-        self.signature = sk.sign(self.compute_hash().encode()).hex()
-
-    def sign_input(self, input_index, private_key_hex):
-        tx_input = self.inputs[input_index]
-
-        sk = ecdsa.SigningKey.from_string(
-            bytes.fromhex(private_key_hex),
-            curve=ecdsa.SECP256k1
-        )
-
-        message = self.compute_hash().encode()
-        signature = sk.sign(message)
-
-        tx_input.signature = signature.hex()
-        tx_input.public_key = binascii.hexlify(
-            sk.get_verifying_key().to_string() #type: ignore
-        ).decode()
 
