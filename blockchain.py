@@ -11,6 +11,26 @@ def generate_keys():
     public_key = binascii.hexlify(vk.to_string()).decode() # type: ignore
     return private_key, public_key
 
+def merkle_root(transactions):
+    tx_hashes = [tx.compute_hash() for tx in transactions]
+
+    if not tx_hashes:
+        return None
+
+    while len(tx_hashes) > 1:
+        if len(tx_hashes) % 2 != 0:
+            tx_hashes.append(tx_hashes[-1])
+
+        new_level = []
+        for i in range(0, len(tx_hashes), 2):
+            combined = tx_hashes[i] + tx_hashes[i + 1]
+            new_hash = hashlib.sha256(combined.encode()).hexdigest()
+            new_level.append(new_level)
+        
+        tx_hashes = new_level
+
+    return tx_hashes[0]
+
 class Block:
     def __init__(self, index, transactions, previous_hash, nonce=0):
         self.index = index
@@ -18,6 +38,7 @@ class Block:
         self.transactions = transactions
         self.previous_hash = previous_hash
         self.nonce = nonce
+        self.merkle_root = merkle_root(transactions)
         self.hash = self.compute_hash()
 
     def compute_hash(self):
@@ -85,8 +106,8 @@ class Blockchain:
             
             input_total += referenced_output.amount
 
-            for output in tx.outputs:
-                output_total += output.amount
+        for output in tx.outputs:
+            output_total += output.amount
 
             return input_total >= output_total
     
@@ -109,20 +130,47 @@ class Blockchain:
                 self.utxos[(tx_id, index)] = output
 
     def mine(self, miner_address):
-        reward_tx = Transaction([], [TxOutput(miner_address, self.mining_reward)])
+        def fee(tx):
+            if len(tx.inputs) == 0:
+                return 0
+            inp = sum(self.utxos[(i.tx_id, i.output_index)].amount for i in tx.inputs)
+            out = sum(o.amount for o in tx.outputs)
+            return inp - out
+        
+        self.pending_transactions.sort(key=fee, reverse=True)
+
+        total_fees = sum(fee(tx) for tx in self.pending_transactions)
+
+        reward_tx = Transaction([], [TxOutput(miner_address, self.mining_reward + total_fees)])
         self.pending_transactions.append(reward_tx)
 
         block = Block(len(self.chain), self.pending_transactions, self.chain[-1].hash)
         block.hash = self.proof_of_work(block)
 
-        self.chain.append(block)
-        self.update_utxos(block)
+        if self.is_valid_block(block):
+            self.chain.append(block)
+            self.update_utxos(block)
+            self.pending_transactions = []
 
-        self.pending_transactions = []
+    def is_valid_block(self, block):
+        if block.previous_hash != self.chain[-1].hash:
+            return False
+        
+        if not block.hash.startswith("0" * self.difficulty):
+            return False
+        
+        if block.merkle_root != merkle_root(block.transactions):
+            return False
+        
+        for tx in block.transactions:
+            if not self.is_valid_transaction(tx):
+                return False
+        
+        return True
 
     def get_balance(self, address):
         balance = 0
-        for (tx_id, index), output in self.utxos.items():
+        for (_, _), output in self.utxos.items():
             if output.recipient == address:
                 balance += output.amount
         return balance
@@ -169,4 +217,4 @@ class Transaction:
         tx_input.public_key = binascii.hexlify(
             sk.get_verifying_key().to_string() #type: ignore
         ).decode()
-        
+
