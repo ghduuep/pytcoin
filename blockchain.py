@@ -1,5 +1,4 @@
 import ecdsa
-import binascii
 from .block import Block, merkle_root
 from .transaction import Transaction, TxOutput   
 class Blockchain:
@@ -66,7 +65,7 @@ class Blockchain:
         for output in tx.outputs:
             output_total += output.amount
 
-            return input_total >= output_total
+        return input_total >= output_total
     
     def add_transaction(self, tx):
         if self.is_valid_transaction(tx):
