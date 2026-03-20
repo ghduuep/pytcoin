@@ -26,6 +26,14 @@ class Transaction:
     def compute_hash(self):
         data = json.dumps(self.__dict__, default=lambda o: o.__dict__, sort_keys=True)
         return hashlib.sha256(data.encode()).hexdigest()
+
+    def compute_hash_for_signing(self):
+        data = {
+            "inputs": [(i.tx_id, i.output_index) for i in self.inputs],
+            "outputs": [(o.recipient, o.amount) for o in self.outputs],
+            "timestamp": self.timestamp
+        }
+        return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
     
     def sign_transaction(self, private_key_hex):
         sk = ecdsa.SigningKey.from_string(bytes.fromhex(private_key_hex), curve=ecdsa.SECP256k1)
@@ -39,7 +47,7 @@ class Transaction:
             curve=ecdsa.SECP256k1
         )
 
-        message = self.compute_hash().encode()
+        message = self.compute_hash_for_signing().encode()
         signature = sk.sign(message)
 
         tx_input.signature = signature.hex()

@@ -33,5 +33,14 @@ class Block:
         self.hash = self.compute_hash()
 
     def compute_hash(self):
-        block_string = json.dumps(self.__dict__, sort_keys=True)
+        block_data = {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "transactions": self.transactions,
+            "previous_hash": self.previous_hash,
+            "nonce": self.nonce,
+            "merke_root": self.merkle_root
+        }
+
+        block_string = json.dumps(block_data, sort_keys=True)
         return hashlib.sha256(block_string.encode()).hexdigest()

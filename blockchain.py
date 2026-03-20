@@ -53,7 +53,7 @@ class Blockchain:
                     curve=ecdsa.SECP256k1
                 )
 
-                message = tx.compute_hash().encode()
+                message = tx.compute_hash_for_signing().encode()
 
                 if not vk.verify(bytes.fromhex(tx_input.signature), message):
                     return False
